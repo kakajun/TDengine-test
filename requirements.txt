@@ -1,0 +1,6 @@
+streamlit
+pandas
+taos-ws-py
+openai
+python-dotenv
+matplotlib
