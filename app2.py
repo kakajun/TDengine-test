@@ -4,6 +4,41 @@ import taosws
 from openai import OpenAI
 import json
 import re
+import os
+
+# --- 加载字段映射 ---
+MAPPING_FILE = "db_column_mapping.json"
+COLUMN_MAPPING = {}
+if os.path.exists(MAPPING_FILE):
+    try:
+        with open(MAPPING_FILE, "r", encoding="utf-8") as f:
+            COLUMN_MAPPING = json.load(f)
+    except Exception as e:
+        st.error(f"加载字段映射失败: {e}")
+else:
+    st.warning("未找到字段映射文件 db_column_mapping.json")
+
+# --- 配置文件管理 ---
+CONFIG_FILE = "config.json"
+
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            pass
+    return {}
+
+
+def save_config(config):
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2)
+    except Exception as e:
+        st.error(f"保存配置失败: {e}")
+
 
 # --- 页面配置 ---
 st.set_page_config(
@@ -20,19 +55,24 @@ if "messages" not in st.session_state:
 with st.sidebar:
     st.header("🔧 设置")
 
+    # 加载配置
+    config = load_config()
+
     st.subheader("1. 数据库配置")
-    td_host = st.text_input("TDengine Host", "localhost")
-    td_port = st.text_input("TDengine Port", "6041")
-    td_user = st.text_input("Username", "root")
-    td_pass = st.text_input("Password", "taosdata", type="password")
+    td_host = st.text_input(
+        "TDengine Host", config.get("td_host", "localhost"))
+    td_port = st.text_input("TDengine Port", config.get("td_port", "6041"))
+    td_user = st.text_input("Username", config.get("td_user", "root"))
+    td_pass = st.text_input("Password", config.get(
+        "td_pass", "taosdata"), type="password")
 
     st.subheader("2. AI 模型配置")
-    api_key = st.text_input("API Key", type="password",
+    api_key = st.text_input("API Key", value=config.get("api_key", ""), type="password",
                             help="请输入您的 OpenAI/DeepSeek 等模型的 API Key")
-    base_url = st.text_input("Base URL", "https://api.deepseek.com",
+    base_url = st.text_input("Base URL", config.get("base_url", "https://api.deepseek.com"),
                              help="例如 DeepSeek 使用: https://api.deepseek.com")
     model_name = st.text_input(
-        "Model Name", "deepseek-chat", help="DeepSeek 填: deepseek-chat; OpenAI 填: gpt-4o")
+        "Model Name", config.get("model_name", "deepseek-chat"), help="DeepSeek 填: deepseek-chat; OpenAI 填: gpt-4o")
 
     if st.button("🔌 测试 API 连接"):
         if not api_key:
@@ -46,7 +86,19 @@ with st.sidebar:
                     messages=[{"role": "user", "content": "Hi"}],
                     max_tokens=5
                 )
-                st.success(f"✅ 连接成功！当前模型 '{model_name}' 可用。")
+
+                # 保存配置
+                save_config({
+                    "td_host": td_host,
+                    "td_port": td_port,
+                    "td_user": td_user,
+                    "td_pass": td_pass,
+                    "api_key": api_key,
+                    "base_url": base_url,
+                    "model_name": model_name
+                })
+
+                st.success(f"✅ 连接成功！当前模型 '{model_name}' 可用。配置已保存。")
             except Exception as e:
                 st.error(
                     f"❌ 连接失败\n\n**错误信息:** {str(e)}\n\n**排查建议:**\n1. 检查 Model Name 是否正确 (当前: `{model_name}`)\n2. 检查 Base URL 是否正确 (当前: `{base_url}`)\n3. 确认 API Key 是否有效")
@@ -68,7 +120,7 @@ def execute_query(sql):
         conn = get_db_connection()
         # 确保使用正确的数据库
         cursor = conn.cursor()
-        cursor.execute("USE solar_power")
+        cursor.execute("USE station_data")
 
         cursor.execute(sql)
         fields = [field[0] for field in cursor.description]
@@ -77,7 +129,17 @@ def execute_query(sql):
         cursor.close()
         conn.close()
 
-        return pd.DataFrame(data, columns=fields), None
+        df = pd.DataFrame(data, columns=fields)
+
+        # 重命名列 (如果存在映射)
+        if COLUMN_MAPPING:
+            # 仅重命名存在于映射中的列
+            rename_dict = {k: v for k,
+                           v in COLUMN_MAPPING.items() if k in df.columns}
+            if rename_dict:
+                df = df.rename(columns=rename_dict)
+
+        return df, None
     except Exception as e:
         return None, str(e)
 
@@ -89,21 +151,29 @@ def get_sql_from_llm(user_query):
     client = OpenAI(api_key=api_key, base_url=base_url)
 
     # 定义 Schema 和 Prompt
-    schema_info = """
-    Database: solar_power
-    Super Table: meters
+    # 动态生成字段描述
+    columns_desc = ""
+    # 为了避免 Context 溢出，如果字段太多，只选取一部分关键字段或者精简描述
+    # 这里我们列出所有字段，但格式紧凑
+    for col, desc in COLUMN_MAPPING.items():
+        columns_desc += f"      - {col} (DOUBLE): {desc}\n"
+
+    schema_info = f"""
+    Database: station_data
+    Super Table: stable_gtjjlfgdzf
     Columns:
       - ts (TIMESTAMP): 时间戳
-      - current (FLOAT): 电流 (A)
-      - voltage (FLOAT): 电压 (V)
-      - power (FLOAT): 功率 (kW)
-      - energy_daily (FLOAT): 当日累计发电量 (kWh)
+{columns_desc}
     Tags:
-      - location (BINARY): 场站名称 (例如 'Station_A', 'Station_B')
-      - model (BINARY): 设备型号
-    """
+      - station_code (NCHAR): 场站编号 (例如 'gtjjlfgdzf')
+      - equ_code (NCHAR): 设备编号 (例如 'F15', 'F24')
 
-    system_prompt = f"""
+    【数据时间范围】
+    - 数据起始时间: 2026-01-22 12:32:00
+    - 数据结束时间: 2026-01-28 16:00:00
+    - 注意：如果用户查询"今天"或"最新"的数据，请优先关注 2026-01-28 附近的数据，或者明确告知用户当前数据的时间范围。
+
+    【TDengine 特有语法规则】
     你是一个 TDengine SQL 专家。你的任务是将用户的自然语言查询转换为 TDengine SQL 语句。
 
     【数据库结构】
@@ -115,6 +185,7 @@ def get_sql_from_llm(user_query):
     3. 今天的范围是 `ts >= TODAY`，过去24小时是 `ts >= NOW - 24h`。
     4. 降采样查询（如曲线图）必须包含时间戳列 `ts`。
     5. 注意字符串值需要用单引号包裹。
+    6. 禁止使用 AS 关键字重命名列，直接使用原始列名（例如使用 `select av` 而不是 `select av AS '1_有功功率'`），列名重命名由前端自动处理。
 
     【输出要求】
     1. 仅输出 SQL 语句，不要包含 markdown 代码块标记（如 ```sql ... ```）。
@@ -144,7 +215,8 @@ def get_sql_from_llm(user_query):
 
 
 st.title("☀️ 光伏场站数据智能助手")
-st.markdown("直接输入问题，例如：*“Station_A 今天的功率曲线是什么？”* 或 *“Station_B 昨天的总发电量”*")
+st.markdown(
+    "直接输入问题，例如：*“查询 F15 设备 2026-01-28 的 1_PV9输入电流 曲线”* 或 *“查询 gtjjlfgdzf 场站 F16 设备最新的 1_有功功率”*")
 
 # 展示历史消息
 for msg in st.session_state.messages:
