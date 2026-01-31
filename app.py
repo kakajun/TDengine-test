@@ -110,11 +110,16 @@ def get_sql_from_llm(user_query):
     {schema_info}
 
     【TDengine 特有语法规则】
-    1. 时间窗口聚合使用 `INTERVAL(1h)` 或 `INTERVAL(1d)` 等语法，通常配合 `WHERE ts >= ...` 使用。
-    2. 获取最新数据使用 `ORDER BY ts DESC LIMIT 1` 或 `LAST_ROW()` 函数。
-    3. 今天的范围是 `ts >= TODAY`，过去24小时是 `ts >= NOW - 24h`。
-    4. 降采样查询（如曲线图）必须包含时间戳列 `ts`。
-    5. 注意字符串值需要用单引号包裹。
+    1. **核心规则 (INTERVAL)**：当使用 `INTERVAL` 进行时间窗口聚合（降采样）时，SELECT 列表中**绝对不能**包含 `ts` 列，必须使用 `_wstart`。
+    2. **绘图要求**：为了让前端能画图，请务必将 `_wstart` 重命名为 `ts`。
+       - ✅ 正确: `SELECT _wstart AS ts, avg(power) FROM meters ... INTERVAL(1h)`
+       - ❌ 错误: `SELECT ts, avg(power) ... INTERVAL(1h)`
+    3. **普通聚合**：如果没有 `INTERVAL`，SELECT 列表中**绝对不能**包含 `ts` 或 `_wstart`。
+       - ✅ 正确: `SELECT avg(power) FROM meters ...`
+       - ❌ 错误: `SELECT ts, avg(power) ...`
+    4. 获取最新数据使用 `ORDER BY ts DESC LIMIT 1` 或 `LAST_ROW()`。
+    5. 今天的范围是 `ts >= TODAY`，过去24小时是 `ts >= NOW - 24h`。
+    6. 字符串值需要用单引号包裹。
 
     【输出要求】
     1. 仅输出 SQL 语句，不要包含 markdown 代码块标记（如 ```sql ... ```）。
