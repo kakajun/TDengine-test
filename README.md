@@ -41,6 +41,8 @@ streamlit run app.py
 *   系统会自动打开浏览器，访问 `http://localhost:8501`。
 
 ---
+## 启动
+docker start taosdb-ee
 
 ## 💡 如何使用
 
