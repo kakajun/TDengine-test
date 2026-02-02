@@ -7,7 +7,7 @@ import re
 import os
 
 # --- 加载字段映射 ---
-MAPPING_FILE = "db_column_mapping.json"
+MAPPING_FILE = "column_mapping.json"
 COLUMN_MAPPING = {}
 if os.path.exists(MAPPING_FILE):
     try:
@@ -16,8 +16,7 @@ if os.path.exists(MAPPING_FILE):
     except Exception as e:
         st.error(f"加载字段映射失败: {e}")
 else:
-    st.warning("未找到字段映射文件 db_column_mapping.json")
-
+   st.warning("未找到字段映射文件 column_mapping.json")
 # --- 配置文件管理 ---
 CONFIG_FILE = "config.json"
 
@@ -172,12 +171,18 @@ def get_sql_from_llm(user_query):
     - 数据起始时间: 2026-01-22 12:32:00
     - 数据结束时间: 2026-01-28 16:00:00
     - 注意：如果用户查询"今天"或"最新"的数据，请优先关注 2026-01-28 附近的数据，或者明确告知用户当前数据的时间范围。
+    """
 
-    【TDengine 特有语法规则】
+    system_prompt = f"""
     你是一个 TDengine SQL 专家。你的任务是将用户的自然语言查询转换为 TDengine SQL 语句。
 
     【数据库结构】
     {schema_info}
+
+    【重要提示】
+    1. 必须严格根据【数据库结构】中的 Columns 描述来选择列名。
+    2. 用户的查询词汇可能不完全匹配列描述，请根据语义选择最接近的列。例如 "有功" -> "发电机有功功率" (dc)。
+    3. 如果有多个相似的列，优先选择描述最精准匹配的列。
 
     【TDengine 特有语法规则】
     1. 时间窗口聚合使用 `INTERVAL(1h)` 或 `INTERVAL(1d)` 等语法，通常配合 `WHERE ts >= ...` 使用。
@@ -191,6 +196,10 @@ def get_sql_from_llm(user_query):
     1. 仅输出 SQL 语句，不要包含 markdown 代码块标记（如 ```sql ... ```）。
     2. 不要输出任何解释性文字。
     """
+
+    # Debug: 打印 Schema Info 摘要到控制台
+    print(f"\n[Debug] Schema Info Length: {len(schema_info)}")
+    print(f"[Debug] Schema Info Preview (First 500 chars):\n{schema_info[:500]}...")
 
     try:
         response = client.chat.completions.create(
@@ -206,6 +215,11 @@ def get_sql_from_llm(user_query):
         sql = re.sub(r'^```sql\s*', '', sql)
         sql = re.sub(r'^```\s*', '', sql)
         sql = re.sub(r'\s*```$', '', sql)
+
+        # 打印生成的 SQL 到控制台
+        print(f"\n[User Query]: {user_query}")
+        print(f"[Generated SQL]:\n{sql}\n")
+
         return sql, None
     except Exception as e:
         error_msg = f"AI 调用失败: {str(e)}\n\n(当前配置 -> Model: {model_name}, Base URL: {base_url})"
@@ -216,7 +230,7 @@ def get_sql_from_llm(user_query):
 
 st.title("☀️ 光伏场站数据智能助手")
 st.markdown(
-    "直接输入问题，例如：*“查询 F15 设备 2026-01-28 的 1_PV9输入电流 曲线”* 或 *“查询 gtjjlfgdzf 场站 F16 设备最新的 1_有功功率”*")
+    "直接输入问题，例如：*“查询 F01 设备 2026-01-28 一整天的发电机有功功率 曲线”* 或 *“查询 gtjjlfgdzf 场站 F16 设备最新的 1_有功功率”*")
 
 # 展示历史消息
 for msg in st.session_state.messages:
