@@ -1,0 +1,12 @@
+- name: 逆变单元1第1路电流异常
+  expr: 逆变单元1第1路电流 < 0.3
+  severity: high
+  window: 5min any
+  dedup: 10m
+  message: "逆变单元1第1路电流偏低，请检查"
+
+- name: 额定有功功率异常
+  expr: 额定有功功率 > 1
+  severity: warning
+  dedup: 1h
+  message: "额定有功功率过高"

@@ -1,0 +1,8 @@
+- name: Test Rule 1
+  expr: 支路电流 > 3.5 and 总辐照度 > 1
+  severity: high
+  message: "High Current and Irradiance"
+
+- name: Test Rule 2
+  expr: 逆变器有功功率 > 5
+  severity: warning

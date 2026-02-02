@@ -1,0 +1,9 @@
+data:
+  mapping_path: "test_mapping.csv"
+  mapping_encoding: "utf-8"
+
+rules:
+  path: "configs/test_rules.yaml"
+
+output:
+  path: "out/test_alerts.csv"

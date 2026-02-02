@@ -1,0 +1,14 @@
+data:
+  input_pattern: "*.csv"
+  mapping_path: "d:\\git\\TDengine-test\\column_mapping.json"
+  mapping_encoding: "utf-8"
+
+rules:
+  path: "configs/rules.yaml"
+
+output:
+  path: "out/alerts.csv"
+
+model:
+  model_path: "out/model.pkl"
+  feature_columns: ["支路电流", "总辐照度", "逆变器有功功率"] # Example
