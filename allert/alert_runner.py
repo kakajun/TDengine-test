@@ -5,7 +5,6 @@ from allert.data_loader import DataLoader
 from allert.mapping_loader import MappingLoader
 import click
 import yaml
-import pandas as pd
 from loguru import logger
 import os
 import sys
@@ -87,15 +86,31 @@ def run(config, input, sql, output):
 
 @cli.command()
 @click.option('--config', default='configs/config.yaml')
-@click.option('--input', required=True, help='Input CSV for training base')
-def train_model(config, input):
+@click.option('--input', default=None, help='Input CSV for training base')
+@click.option('--sql', default=None, help='SQL query for TSDB')
+def train_model(config, input, sql):
     """Train a model (Demo)"""
     cfg = load_yaml(config)
 
     # 加载数据
-    mapping_loader = MappingLoader(cfg['data']['mapping_path'])
+    mapping_loader = MappingLoader(
+        cfg['data']['mapping_path'],
+        encoding=cfg['data'].get('mapping_encoding', 'utf-8')
+    )
     data_loader = DataLoader(mapping_loader)
-    df = data_loader.load_csv(input)
+
+    try:
+        if input:
+            df = data_loader.load_csv(input)
+        else:
+            # 默认使用 SQL
+            query = sql if sql else "SELECT * FROM station_data.stable_gtjjlfgdzf LIMIT 1000"
+            df = data_loader.load_from_tsdb(query)
+
+        logger.info(f"Loaded base data shape: {df.shape}")
+    except Exception as e:
+        logger.error(f"Failed to load data: {e}")
+        return
 
     # 合成数据
     synth = DataSynthesizer(df)

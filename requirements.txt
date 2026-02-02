@@ -4,3 +4,6 @@ taos-ws-py
 openai
 python-dotenv
 matplotlib
+chardet
+loguru
+PyYAML
