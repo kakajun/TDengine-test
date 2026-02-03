@@ -7,3 +7,4 @@ matplotlib
 chardet
 loguru
 PyYAML
+scikit-learn

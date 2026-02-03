@@ -41,7 +41,7 @@ mapping = load_mapping()
 
 st.title("☀️ 光伏场站数据智能助手 Plus")
 st.markdown(
-    "直接输入问题，例如：*“查询 F01 设备 2026-01-28 一整天的发电机有功功率 曲线”* 或 *“查询 gtjjlfgdzf 2026-01-28 一整天的发电量, 柱图”*")
+    "直接输入问题，例如：*“查询 F01 设备 2026-01-28 一整天的发电机有功功率 曲线”* 或 *“查询 gtjjlfgdzf 2026-01-28 一整天的风速, 线图”*")
 
 for msg in st.session_state.messages:
     with st.chat_message(msg.get("role", "assistant")):

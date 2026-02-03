@@ -1,7 +1,7 @@
 import taosws
 
 try:
-    conn = taosws.connect("taosws://root:taosdata@localhost:6041")
+    conn = taosws.connect("taosws://root:taosdata@192.168.2.110:6041")
     cursor = conn.cursor()
     cursor.execute("USE station_data")
     cursor.execute("DESCRIBE stable_gtjjlfgdzf")
