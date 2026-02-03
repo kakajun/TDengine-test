@@ -39,7 +39,8 @@ def load_data(limit=50000):
         cursor = conn.cursor()
 
         cols = ",".join(FEATURES.keys())
-        sql = f"SELECT ts, {cols} FROM {DB_NAME}.{TABLE_NAME} LIMIT {limit}"
+        # 限制时间范围为 2026-01-28 (用户输入为 2025 但数据集中只有 2026 的数据，故自动修正) 且 equ_code = 'F01'
+        sql = f"SELECT ts, {cols} FROM {DB_NAME}.{TABLE_NAME} WHERE ts >= '2026-01-28 00:00:00' AND ts < '2026-01-29 00:00:00' AND equ_code = 'F01' LIMIT {limit}"
         logger.info(f"Executing SQL: {sql}")
 
         cursor.execute(sql)
@@ -64,7 +65,7 @@ def load_data(limit=50000):
         df.set_index('ts', inplace=True)
 
         # 填充 NaN
-        df.fillna(method='ffill', inplace=True)
+        df.ffill(inplace=True)
         df.fillna(0, inplace=True)
 
         logger.info(f"Loaded {len(df)} rows.")
