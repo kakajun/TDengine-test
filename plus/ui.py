@@ -1,4 +1,6 @@
 import streamlit as st
+import streamlit.components.v1 as components
+import json
 from openai import OpenAI
 from .config import load_config, save_config
 
@@ -105,3 +107,58 @@ def render_chart(df, chart_type="line"):
                 st.area_chart(chart_data)
             else:
                 st.line_chart(chart_data)
+
+def inject_history_js(history_messages):
+    """
+    注入 JavaScript 以支持在 chat_input 中使用上下箭头回填历史记录
+    """
+    # 提取用户发送的消息内容
+    user_history = [msg["content"] for msg in history_messages if msg.get("role") == "user"]
+
+    js = f"""
+    <script>
+        (function() {{
+            const history = {json.dumps(user_history)};
+            let historyIndex = history.length;
+
+            function setTextAreaValue(text) {{
+                const textArea = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+                if (textArea) {{
+                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+                    nativeInputValueSetter.call(textArea, text);
+                    textArea.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                }}
+            }}
+
+            function init() {{
+                const textArea = window.parent.document.querySelector('textarea[data-testid="stChatInputTextArea"]');
+                if (!textArea) {{
+                    setTimeout(init, 500);
+                    return;
+                }}
+
+                // 防止重复添加监听器 (简单检查)
+                if (textArea.dataset.historyAttached === "true") return;
+                textArea.dataset.historyAttached = "true";
+
+                textArea.addEventListener('keydown', function(e) {{
+                    if (e.key === 'ArrowUp') {{
+                        if (historyIndex > 0) {{
+                            historyIndex--;
+                            setTextAreaValue(history[historyIndex]);
+                        }}
+                    }} else if (e.key === 'ArrowDown') {{
+                        if (historyIndex < history.length) {{
+                            historyIndex++;
+                            const text = historyIndex === history.length ? "" : history[historyIndex];
+                            setTextAreaValue(text);
+                        }}
+                    }}
+                }});
+            }}
+
+            init();
+        }})();
+    </script>
+    """
+    components.html(js, height=0)

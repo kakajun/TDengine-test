@@ -15,7 +15,7 @@ from plus.context import parse_query_slots, merge_with_memory
 from plus.mapping import load_mapping, get_relevant_columns
 from plus.llm import build_schema_info, generate_sql
 from plus.db import execute_query
-from plus.ui import render_sidebar, show_applied_context, render_chart
+from plus.ui import render_sidebar, show_applied_context, render_chart, inject_history_js
 
 st.set_page_config(page_title="光伏数据 AI 助手 Plus", page_icon="☀️", layout="wide")
 if "messages" not in st.session_state:
@@ -24,6 +24,9 @@ init_dialog_state()
 
 with st.sidebar:
     config = render_sidebar()
+
+# 注入历史记录回填脚本
+inject_history_js(st.session_state.messages)
 
 api_key = config.get("api_key", "")
 base_url = config.get("base_url", "https://api.deepseek.com")
